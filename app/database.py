@@ -18,8 +18,8 @@ engine = create_engine(
     echo_pool=False,
     
     # Pool para alta latência
-    pool_size=3,           # REDUZIDO para conexões simultâneas
-    max_overflow=5,        # Overflow limitado
+    pool_size=20,           # REDUZIDO para conexões simultâneas
+    max_overflow=30,        # Overflow limitado
     pool_pre_ping=True,    # IMPORTANTE para conexões instáveis
     pool_recycle=3600,     # Recicla a cada hora
     pool_timeout=30,       # Timeout para pegar conexão
@@ -34,7 +34,6 @@ engine = create_engine(
         "sslmode": "require",       # ← OBRIGATÓRIO para Render.com!
         "sslrootcert": "",          # Usa certificados do sistema
         "application_name": "juris_api",
-        "options": "-c statement_timeout=30000"  # 30s timeout de query
     }
 )
 

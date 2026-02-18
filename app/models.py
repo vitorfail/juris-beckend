@@ -59,6 +59,7 @@ class Client(Base):
     phone = Column(String(20))
     address = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    estado = Column(String(10), nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Constraints

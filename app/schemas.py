@@ -74,6 +74,7 @@ class ClientBase(BaseSchema):
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
+    estado: Optional[str] = None
 
 class ClientCreate(ClientBase):
     pass

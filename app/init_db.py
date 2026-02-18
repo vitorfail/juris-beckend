@@ -64,7 +64,8 @@ def init_db() -> None:
                 document="123.456.789-00",
                 email="maria@email.com",
                 phone="(11) 98888-7777",
-                address="Rua Exemplo, 123 - São Paulo/SP"
+                address="Rua Exemplo, 123 - São Paulo/SP",
+                estado="CE"
             )
             db.add(client)
             

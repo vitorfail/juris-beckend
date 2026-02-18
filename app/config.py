@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # CORS - como string simples
-    BACKEND_CORS_ORIGINS : str = "http://localhost:3000"
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
     
     # Database
     DATABASE_HOST: str = "localhost"
@@ -39,9 +39,9 @@ class Settings(BaseSettings):
     @property
     def ALLOWED_ORIGINS(self) -> List[str]:
         """Retorna lista de origens CORS permitidas."""
-        if not hasattr(self, 'CORS_ORIGINS'):
+        if not hasattr(self, 'BACKEND_CORS_ORIGINS'):
             return ["http://localhost:3000"]
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",") if origin.strip()]
     
     class Config:
         env_file = ".env"
