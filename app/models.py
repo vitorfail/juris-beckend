@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, CheckConstraint, Index
+from sqlalchemy import Column, String, Text, Boolean, Numeric, Date, DateTime, ForeignKey, CheckConstraint, Index, Integer, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -13,6 +13,10 @@ class LawFirm(Base):
     cnpj = Column(String(18), unique=True, nullable=True)
     email = Column(String(255))
     phone = Column(String(20))
+    settings = Column(JSON, nullable=True)
+    subscription_plan = Column(String(50), default="free")
+    subscription_status = Column(String(20), default="active")
+    subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -32,6 +36,7 @@ class User(Base):
     password_hash = Column(Text, nullable=False)
     role = Column(String(50), nullable=False)
     is_active = Column(Boolean, default=True)
+    permissions = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -46,6 +51,21 @@ class User(Base):
     tasks_assigned = relationship("Task", back_populates="assigned_to_user", foreign_keys="Task.assigned_to")
     documents_uploaded = relationship("Document", back_populates="uploaded_by_user")
     notes = relationship("Note", back_populates="user")
+    activity_logs = relationship("UserActivityLog", back_populates="user", cascade="all, delete-orphan")
+
+class UserActivityLog(Base):
+    __tablename__ = "user_activity_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    action = Column(String(255), nullable=False)
+    resource = Column(String(100), nullable=True)
+    details = Column(JSON, nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="activity_logs")
 
 class Client(Base):
     __tablename__ = "clients"
@@ -58,8 +78,9 @@ class Client(Base):
     email = Column(String(255))
     phone = Column(String(20))
     address = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
     estado = Column(String(10), nullable=True)
+    status = Column(String(50), default="active")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Constraints
@@ -142,6 +163,11 @@ class Task(Base):
     description = Column(Text)
     due_date = Column(Date)
     status = Column(String(30), default="pending")
+    priority = Column(String(20), default="medium")
+    progress = Column(Integer, default=0)
+    is_recurring = Column(Boolean, default=False)
+    recurrence_pattern = Column(String(50), nullable=True)
+    reminder_date = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Constraints

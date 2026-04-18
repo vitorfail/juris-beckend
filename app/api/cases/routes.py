@@ -36,7 +36,7 @@ def create_case(
     return db_case
 
 @router.get("/", response_model=List[schemas.CaseInDB])
-def read_cases(
+def get_all_cases(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),

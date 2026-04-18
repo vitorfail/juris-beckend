@@ -17,6 +17,10 @@ class LawFirmBase(BaseSchema):
     cnpj: Optional[str] = Field(None, max_length=18)
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
+    settings: Optional[dict] = None
+    subscription_plan: str = "free"
+    subscription_status: str = "active"
+    subscription_expires_at: Optional[datetime] = None
 
 class LawFirmCreate(LawFirmBase):
     pass
@@ -25,6 +29,10 @@ class LawFirmUpdate(BaseSchema):
     name: Optional[str] = Field(None, max_length=255)
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
+    settings: Optional[dict] = None
+    subscription_plan: Optional[str] = None
+    subscription_status: Optional[str] = None
+    subscription_expires_at: Optional[datetime] = None
 
 class LawFirmInDB(LawFirmBase):
     id: uuid.UUID
@@ -40,6 +48,7 @@ class UserBase(BaseSchema):
     email: EmailStr
     role: str = Field(..., pattern="^(admin|lawyer|assistant)$")
     is_active: bool = True
+    permissions: Optional[dict] = None
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
@@ -50,6 +59,7 @@ class UserUpdate(BaseSchema):
     email: Optional[EmailStr] = None
     role: Optional[str] = Field(None, pattern="^(admin|lawyer|assistant)$")
     is_active: Optional[bool] = None
+    permissions: Optional[dict] = None
 
 class UserInDB(UserBase):
     id: uuid.UUID
@@ -60,6 +70,20 @@ class UserInDB(UserBase):
 class UserLogin(BaseSchema):
     email: EmailStr
     password: str
+
+class UserActivityLogBase(BaseSchema):
+    action: str = Field(..., max_length=255)
+    resource: Optional[str] = Field(None, max_length=100)
+    details: Optional[dict] = None
+    ip_address: Optional[str] = Field(None, max_length=45)
+
+class UserActivityLogCreate(UserActivityLogBase):
+    pass
+
+class UserActivityLogInDB(UserActivityLogBase):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    created_at: datetime
 
 class Token(BaseSchema):
     access_token: str
@@ -75,6 +99,7 @@ class ClientBase(BaseSchema):
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
     estado: Optional[str] = None
+    status: Optional[str] = "active"
 
 class ClientCreate(ClientBase):
     pass
@@ -84,6 +109,7 @@ class ClientUpdate(BaseSchema):
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
+    status: Optional[str] = None
 
 class ClientInDB(ClientBase):
     id: uuid.UUID
@@ -154,6 +180,11 @@ class TaskBase(BaseSchema):
     description: Optional[str] = None
     due_date: Optional[date] = None
     status: str = Field("pending", pattern="^(pending|done|late)$")
+    priority: str = Field("medium", pattern="^(low|medium|high)$")
+    progress: int = Field(0, ge=0, le=100)
+    is_recurring: bool = False
+    recurrence_pattern: Optional[str] = None
+    reminder_date: Optional[datetime] = None
 
 class TaskCreate(TaskBase):
     pass
@@ -164,6 +195,11 @@ class TaskUpdate(BaseSchema):
     due_date: Optional[date] = None
     status: Optional[str] = Field(None, pattern="^(pending|done|late)$")
     assigned_to: Optional[uuid.UUID] = None
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
+    progress: Optional[int] = Field(None, ge=0, le=100)
+    is_recurring: Optional[bool] = None
+    recurrence_pattern: Optional[str] = None
+    reminder_date: Optional[datetime] = None
 
 class TaskInDB(TaskBase):
     id: uuid.UUID
