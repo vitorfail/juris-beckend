@@ -5,7 +5,7 @@ from .config import settings
 from .database import engine
 from . import models
 from .api.router import api_router
-from app.database import get_db,SessionLocal
+from app.database import get_db, AsyncSessionLocal as SessionLocal
 from app import models
 from sqlalchemy import select, text
 import os
@@ -16,14 +16,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Criar tabelas no banco de dados (Modo Assíncrono)
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        # Nota: create_all é síncrono, então usamos run_sync
-        await conn.run_sync(models.Base.metadata.create_all)
-    logger.info("Tabelas verificadas/criadas com sucesso.")
-
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
@@ -31,6 +23,14 @@ app = FastAPI(
     docs_url="/docs" if settings.ENVIRONMENT == "development" else None,
     redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
 )
+
+# Criar tabelas no banco de dados (Modo Assíncrono)
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        # Nota: create_all é síncrono, então usamos run_sync
+        await conn.run_sync(models.Base.metadata.create_all)
+    logger.info("Tabelas verificadas/criadas com sucesso.")
 
 # Configurar CORS
 if settings.BACKEND_CORS_ORIGINS:
@@ -50,250 +50,14 @@ def debug_routes():
     for route in app.routes:
         routes.append({"path": route.path, "methods": list(route.methods)})
     return routes
+# Rotas de debug comentadas por incompatibilidade com modo Assíncrono
+# (Serão convertidas se necessário no futuro)
+"""
 @app.get("/test-db")
-def test_db():
-    """Teste de performance do banco de dados"""
-    import time
-    from sqlalchemy import text  # ← ADICIONE ESTA IMPORT
-    from app.database import SessionLocal
-    
-    db = SessionLocal()
-    results = {}
-    
-    try:
-        # Teste 1: Conexão simples
-        start = time.time()
-        db.execute(text("SELECT 1"))  # ← ADICIONE text()
-        results["connection_ms"] = (time.time() - start) * 1000
-        
-        # Teste 2: Query count
-        start = time.time()
-        count = db.query(models.LawFirm).count()
-        results["count_query_ms"] = (time.time() - start) * 1000
-        
-        # Teste 3: Inserção rápida
-        start = time.time()
-        import uuid
-        test_firm = models.LawFirm(
-            id=uuid.uuid4(),
-            name=f"Test Performance {int(time.time())}",
-            cnpj=None,
-            email=None,
-            phone=None
-        )
-        db.add(test_firm)
-        db.flush()
-        results["insert_flush_ms"] = (time.time() - start) * 1000
-        
-        db.rollback()
-        
-        # Teste 4: EXPLAIN ANALYZE
-        start = time.time()
-        db.execute(text("EXPLAIN ANALYZE SELECT 1"))
-        results["explain_ms"] = (time.time() - start) * 1000
-        
-        return {
-            **results,
-            "total_ms": sum(results.values()),
-            "law_firms_count": count,
-            "status": "OK" if sum(results.values()) < 100 else "FAST"  # ← 100ms é rápido!
-        }
-        
-    except Exception as e:
-        return {"error": str(e), "type": type(e).__name__}
-    finally:
-        db.close()
-@app.get("/test-local-speed")
-def test_local_speed():
-    """Teste de velocidade com banco local"""
-    import time
-    from sqlalchemy import text
-    from app.database import SessionLocal
-    
-    db = SessionLocal()
-    results = {}
-    
-    try:
-        # Teste 1: Conexão + Query
-        start = time.time()
-        db.execute(text("SELECT 1"))
-        results["query_1"] = (time.time() - start) * 1000
-        
-        # Teste 2: 100 queries rápidas
-        start = time.time()
-        for i in range(100):
-            db.execute(text("SELECT 1"))
-        results["100_queries"] = (time.time() - start) * 1000
-        
-        # Teste 3: Insert rápido
-        start = time.time()
-        import uuid
-        db.execute(
-            text("INSERT INTO law_firms (id, name) VALUES (:id, :name)"),
-            {"id": str(uuid.uuid4()), "name": "Speed Test"}
-        )
-        db.commit()
-        results["insert_commit"] = (time.time() - start) * 1000
-        
-        # Rollback do teste
-        db.rollback()
-        
-        return {
-            **results,
-            "expected": "< 100ms por operação",
-            "diagnosis": "LOCAL_FAST" if results["query_1"] < 50 else "CHECK_CONFIG"
-        }
-        
-    finally:
-        db.close()
-@app.get("/network-diagnosis")
-def network_diagnosis():
-    """Diagnóstico completo de rede"""
-    import time
-    import socket
-    import subprocess
-    import platform
-    from urllib.parse import urlparse
-    
-    # Pega URL do banco do .env
-    db_url = os.getenv("DATABASE_URL")
-    parsed = urlparse(db_url)
-    db_host = parsed.hostname
-    
-    results = {}
-    
-    # 1. DNS Resolution
-    start = time.time()
-    try:
-        ip = socket.gethostbyname(db_host)
-        results["dns_resolution_ms"] = (time.time() - start) * 1000
-        results["resolved_ip"] = ip
-    except Exception as e:
-        results["dns_error"] = str(e)
-        ip = db_host
-    
-    # 2. TCP Connection (socket raw)
-    start = time.time()
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(5)
-        sock.connect((ip, 5432))
-        results["tcp_connect_ms"] = (time.time() - start) * 1000
-        sock.close()
-    except Exception as e:
-        results["tcp_error"] = str(e)
-    
-    # 3. Traceroute (se permitido)
-    if platform.system() != "Windows":
-        try:
-            trace = subprocess.run(
-                ["traceroute", "-n", "-m", "10", "-q", "1", ip],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            results["traceroute"] = trace.stdout[:500]  # Primeiros 500 chars
-        except:
-            results["traceroute"] = "Not available"
-    
-    # 4. MTR (Melhor - mostra perda de pacotes)
-    if platform.system() != "Windows":
-        try:
-            mtr = subprocess.run(
-                ["mtr", "-n", "-r", "-c", "10", ip],
-                capture_output=True,
-                text=True,
-                timeout=15
-            )
-            results["mtr_report"] = mtr.stdout
-        except:
-            results["mtr_report"] = "Install mtr: sudo apt install mtr"
-    
-    # 5. Teste de banda
-    start = time.time()
-    try:
-        # Baixa pequeno arquivo de teste
-        import urllib.request
-        test_url = "http://ipv4.download.thinkbroadband.com/5MB.zip"
-        urllib.request.urlretrieve(test_url, "/tmp/test.zip")
-        results["download_5mb_ms"] = (time.time() - start) * 1000
-    except:
-        results["download_test"] = "Failed"
-    
-    # Análise
-    if "tcp_connect_ms" in results:
-        latency = results["tcp_connect_ms"]
-        if latency < 20:
-            diagnosis = "✅ EXCELENTE (SP-SP ideal)"
-        elif latency < 50:
-            diagnosis = "✅ BOM (SP-SP normal)"
-        elif latency < 100:
-            diagnosis = "⚠️  ACEITÁVEL (possível rota ruim)"
-        elif latency < 200:
-            diagnosis = "❌ RUIM (problema de rota)"
-        else:
-            diagnosis = "🔥 HORRÍVEL (ISP ou firewall)"
-        
-        results["diagnosis"] = diagnosis
-        results["your_latency"] = f"{latency:.1f}ms"
-        results["expected_sp_sp"] = "10-30ms"
-    
-    return results
+...
 @app.get("/compare-raw-vs-orm")
-def compare_raw_vs_orm():
-    """Compara latência pura vs ORM overhead"""
-    import time
-    import psycopg2
-    from sqlalchemy import text
-    from app.database import SessionLocal
-    
-    db_url = os.getenv("DATABASE_URL")
-    
-    results = {}
-    
-    # 1. Psycopg2 PURO (sem ORM)
-    start = time.time()
-    conn = psycopg2.connect(db_url)
-    cur = conn.cursor()
-    cur.execute("SELECT 1")
-    cur.fetchone()
-    cur.close()
-    conn.close()
-    results["raw_psycopg2_ms"] = (time.time() - start) * 1000
-    
-    # 2. SQLAlchemy Core (sem ORM)
-    start = time.time()
-    from sqlalchemy import create_engine
-    raw_engine = create_engine(db_url)
-    with raw_engine.connect() as conn:
-        conn.execute(text("SELECT 1"))
-    results["sqlalchemy_core_ms"] = (time.time() - start) * 1000
-    
-    # 3. SQLAlchemy ORM (seu setup atual)
-    start = time.time()
-    db = SessionLocal()
-    db.execute(text("SELECT 1"))
-    db.close()
-    results["sqlalchemy_orm_ms"] = (time.time() - start) * 1000
-    
-    # 4. Seu endpoint atual (com tudo)
-    # Vamos medir uma request real
-    start = time.time()
-    # Simula request - você pode testar manualmente
-    results["full_request_estimated"] = "Teste manual seu endpoint"
-    
-    # Análise
-    overhead_orm = results["sqlalchemy_orm_ms"] - results["raw_psycopg2_ms"]
-    overhead_core = results["sqlalchemy_core_ms"] - results["raw_psycopg2_ms"]
-    
-    results["analysis"] = {
-        "network_latency": results["raw_psycopg2_ms"],
-        "orm_overhead_ms": overhead_orm,
-        "orm_overhead_percent": (overhead_orm / results["raw_psycopg2_ms"]) * 100 if results["raw_psycopg2_ms"] > 0 else 0,
-        "problem_is": "NETWORK" if results["raw_psycopg2_ms"] > 50 else "ORM" if overhead_orm > 50 else "OK"
-    }
-    
-    return results
+...
+"""
 @app.get("/")
 def read_root():
     return {
@@ -320,7 +84,7 @@ def network_test():
     import time
     import socket
     
-    host = "dpg-d64h2ff5r7bs73afur9g-a.oregon-postgres.render.com"
+    host = settings.DATABASE_HOST
     
     # Teste DNS + TCP
     start = time.time()

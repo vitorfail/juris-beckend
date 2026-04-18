@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 from urllib.parse import quote_plus
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -25,14 +26,34 @@ class Settings(BaseSettings):
     DATABASE_USER: str = "postgres"
     DATABASE_PASSWORD: str = "postgres"
     DATABASE_NAME: str = "law_firm_db"
-    DATABASE_URL: Optional[str] = None
+    DATABASE_URL_ENV: Optional[str] = Field(None, alias="DATABASE_URL")
     
     @property
     def DATABASE_URL(self) -> str:
-        """Constrói URL de conexão segura com encoding."""
+        """Retorna a URL do banco, priorizando o DATABASE_URL do .env e garantindo o driver asyncpg."""
+        # Tenta pegar do campo preenchido pelo Pydantic ou do ambiente
+        url = self.DATABASE_URL_ENV or os.getenv("DATABASE_URL")
+        
+        if url:
+            # Garante que use postgresql+asyncpg://
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            
+            # Remove parâmetros que o asyncpg não gosta (ele usa connect_args no engine se precisar)
+            if "?" in url:
+                base_url, query = url.split("?", 1)
+                # Filtra parâmetros problemáticos
+                params = [p for p in query.split("&") if not p.startswith(("sslmode=", "channel_binding="))]
+                if params:
+                    url = f"{base_url}?{'&'.join(params)}"
+                else:
+                    url = base_url
+            return url
+            
+        # Caso não tenha no .env, reconstrói das variáveis individuais
         encoded_password = quote_plus(self.DATABASE_PASSWORD)
         return (
-            f"postgresql://{self.DATABASE_USER}:{encoded_password}"
+            f"postgresql+asyncpg://{self.DATABASE_USER}:{encoded_password}"
             f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
         )
     
