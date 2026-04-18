@@ -7,6 +7,7 @@ from . import models
 from .api.router import api_router
 from app.database import get_db,SessionLocal
 from app import models
+from sqlalchemy import select, text
 import os
 # Configurar logging
 logging.basicConfig(
@@ -15,8 +16,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Criar tabelas no banco de dados
-models.Base.metadata.create_all(bind=engine)
+# Criar tabelas no banco de dados (Modo Assíncrono)
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        # Nota: create_all é síncrono, então usamos run_sync
+        await conn.run_sync(models.Base.metadata.create_all)
+    logger.info("Tabelas verificadas/criadas com sucesso.")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

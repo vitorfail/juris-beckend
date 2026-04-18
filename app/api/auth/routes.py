@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from datetime import timedelta
 from typing import Any
 
@@ -20,30 +21,19 @@ router = APIRouter()
     summary="Login de usuário",
     description="Autentica um usuário e retorna token JWT com informações do escritório"
 )
-def login(
+async def login(
     *,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_data: UserLogin,
     request: Request
 ) -> Any:
     """
-    Realiza o login do usuário e retorna um token JWT.
-    
-    - **email**: Email do usuário
-    - **password**: Senha do usuário
-    
-    Retorna:
-    - **access_token**: Token JWT para autenticação
-    - **token_type**: Tipo do token (bearer)
-    - **user_id**: ID do usuário
-    - **law_firm_id**: ID do escritório
-    - **email**: Email do usuário
-    - **name**: Nome do usuário
-    - **role**: Papel do usuário (admin/lawyer/assistant)
-    - **is_active**: Status do usuário
+    Realiza o login do usuário e retorna um token JWT de forma assíncrona.
     """
-    # Buscar usuário pelo email
-    user = db.query(User).filter(User.email == user_data.email).first()
+    # Buscar usuário pelo email usando select() assíncrono
+    query = select(User).filter(User.email == user_data.email)
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
     
     if not user:
         raise HTTPException(
@@ -81,9 +71,6 @@ def login(
         expires_delta=access_token_expires
     )
     
-    # Log de acesso (opcional)
-    print(f"Login realizado - Usuário: {user.email}, IP: {request.client.host}")
-    
     return TokenResponse(
         access_token=access_token,
         token_type="bearer",
@@ -102,17 +89,16 @@ def login(
     summary="Login com form OAuth2",
     description="Endpoint de login compatível com OAuth2 Password Flow (para Swagger UI)"
 )
-def login_with_form(
-    db: Session = Depends(get_db),
+async def login_with_form(
+    db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
-    Endpoint de login compatível com OAuth2 Password Flow.
-    Útil para documentação Swagger e clientes OAuth2.
-    O campo 'username' deve ser o email do usuário.
+    Endpoint de login compatível com OAuth2 Password Flow (Assíncrono).
     """
-    # Buscar usuário pelo email (OAuth2 usa 'username' como email)
-    user = db.query(User).filter(User.email == form_data.username).first()
+    query = select(User).filter(User.email == form_data.username)
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
     
     if not user:
         raise HTTPException(
@@ -165,13 +151,9 @@ def login_with_form(
     summary="Renovar token",
     description="Gera um novo token de acesso usando o token atual válido"
 )
-def refresh_token(
+async def refresh_token(
     current_user: User = Depends(get_current_active_user)
 ) -> Any:
-    """
-    Gera um novo token de acesso usando o token atual válido.
-    Requer autenticação com token válido.
-    """
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         data={
@@ -192,48 +174,32 @@ def refresh_token(
 @router.post(
     "/logout",
     status_code=status.HTTP_200_OK,
-    summary="Logout",
-    description="Endpoint para logout (cliente deve descartar o token)"
+    summary="Logout"
 )
-def logout() -> dict:
-    """
-    Endpoint para logout.
-    Como usamos JWT, o logout é feito no lado do cliente.
-    O cliente deve descartar o token e não usá-lo mais.
-    """
+async def logout() -> dict:
     return {
         "message": "Logout realizado com sucesso",
-        "detail": "Token descartado. Para garantir, remova o token do lado do cliente."
+        "detail": "Token descartado no lado do cliente."
     }
 
 @router.get(
     "/me",
     response_model=UserLogin,
-    summary="Usuário atual",
-    description="Retorna informações do usuário atualmente autenticado"
+    summary="Usuário atual"
 )
-def get_current_user_info(
+async def get_current_user_info(
     current_user: User = Depends(get_current_active_user)
 ) -> Any:
-    """
-    Retorna informações do usuário atualmente autenticado.
-    Requer token válido.
-    """
     return current_user
 
 @router.post(
     "/verify-token",
     status_code=status.HTTP_200_OK,
-    summary="Verificar token",
-    description="Verifica se o token é válido"
+    summary="Verificar token"
 )
-def verify_token(
+async def verify_token(
     current_user: User = Depends(get_current_active_user)
 ) -> dict:
-    """
-    Verifica se o token atual é válido.
-    Útil para clientes verificarem a autenticação.
-    """
     return {
         "valid": True,
         "user_id": str(current_user.id),

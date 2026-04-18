@@ -1,7 +1,8 @@
-from typing import Generator, Optional
+from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from .config import settings
@@ -16,12 +17,12 @@ class TokenData(BaseModel):
     email: str
     role: str
 
-def get_current_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> models.User:
     """
-    Obtém o usuário atual baseado no token JWT.
+    Obtém o usuário atual baseado no token JWT de forma assíncrona.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -53,17 +54,20 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
     
-    user = db.query(models.User).filter(
+    # Query assíncrona usando select()
+    query = select(models.User).filter(
         models.User.id == token_data.user_id,
         models.User.is_active == True
-    ).first()
+    )
+    result = await db.execute(query)
+    user = result.scalar_one_or_none()
     
     if user is None:
         raise credentials_exception
     
     return user
 
-def get_current_active_user(
+async def get_current_active_user(
     current_user: models.User = Depends(get_current_user)
 ) -> models.User:
     """
@@ -76,7 +80,7 @@ def get_current_active_user(
         )
     return current_user
 
-def get_current_admin_user(
+async def get_current_admin_user(
     current_user: models.User = Depends(get_current_active_user)
 ) -> models.User:
     """
@@ -89,7 +93,7 @@ def get_current_admin_user(
         )
     return current_user
 
-def get_current_lawyer_user(
+async def get_current_lawyer_user(
     current_user: models.User = Depends(get_current_active_user)
 ) -> models.User:
     """
