@@ -262,11 +262,17 @@ async def get_cases_summary(
 ):
     query = select(func.count(models.Case.id)).filter(models.Case.law_firm_id == current_user.law_firm_id)
     total = (await db.execute(query)).scalar()
+
+    query_active = select(func.count(models.Case.id)).filter(
+        models.Case.law_firm_id == current_user.law_firm_id,
+        models.Case.status == "ativo"
+    )
+    active = (await db.execute(query_active)).scalar()
     
     query_val = select(func.sum(models.Case.value)).filter(models.Case.law_firm_id == current_user.law_firm_id)
     total_value = (await db.execute(query_val)).scalar() or 0
     
-    return {"total_cases": total, "total_value": float(total_value)}
+    return {"total_cases": total, "active_cases": active, "total_value": float(total_value)}
 
 @router.get("/stats/by-area")
 async def count_cases_by_area(

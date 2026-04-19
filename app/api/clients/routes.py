@@ -7,53 +7,58 @@ import uuid
 
 from ...database import get_db
 from ... import schemas, models
-from ...dependencies import get_current_active_user
+from ...dependencies import get_current_active_user, get_current_token_data, TokenData
 
-router = APIRouter(prefix="/clients", tags=["clients"])
+router = APIRouter()
+
+from datetime import datetime
 
 @router.post("/", response_model=schemas.ClientInDB, status_code=status.HTTP_201_CREATED)
 async def create_client(
     client: schemas.ClientCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    token_data: TokenData = Depends(get_current_token_data)
 ):
-    """Criar novo cliente de forma assíncrona."""
+    """Criar novo cliente otimizado para performance."""
     if client.document:
-        query_existing = select(models.Client).filter(
-            models.Client.law_firm_id == current_user.law_firm_id,
+        query_existing = select(models.Client.id).filter(
+            models.Client.law_firm_id == token_data.law_firm_id,
             models.Client.document == client.document
-        )
+        ).limit(1)
         result_existing = await db.execute(query_existing)
-        if result_existing.scalar_one_or_none():
+        if result_existing.scalar():
             raise HTTPException(
                 status_code=400, 
                 detail="Documento já cadastrado neste escritório"
             )
     
+    # Geramos as datas no Python para economizar um db.refresh()
+    now = datetime.now()
     db_client = models.Client(
-        law_firm_id=current_user.law_firm_id,
+        law_firm_id=token_data.law_firm_id,
+        created_at=now,
+        updated_at=now,
         **client.model_dump()
     )
     
     db.add(db_client)
     await db.commit()
-    await db.refresh(db_client)
     return db_client
 
-@router.get("/", response_model=List[schemas.ClientInDB])
+@router.get("/", response_model=schemas.ClientPagination)
 async def get_all_clients(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    token_data: TokenData = Depends(get_current_token_data)
 ):
-    query = select(models.Client).filter(
-        models.Client.law_firm_id == current_user.law_firm_id
+    query_base = select(models.Client).filter(
+        models.Client.law_firm_id == token_data.law_firm_id
     )
     
     if search:
-        query = query.filter(
+        query_base = query_base.filter(
             or_(
                 models.Client.name.ilike(f"%{search}%"),
                 models.Client.document.ilike(f"%{search}%"),
@@ -61,9 +66,24 @@ async def get_all_clients(
             )
         )
     
-    query = query.order_by(models.Client.name).offset(skip).limit(limit)
+    # Total count
+    count_query = select(func.count()).select_from(query_base.subquery())
+    total = (await db.execute(count_query)).scalar()
+    
+    # Paginated results
+    skip = (page - 1) * size
+    query = query_base.order_by(models.Client.name).offset(skip).limit(size)
     result = await db.execute(query)
-    return result.scalars().all()
+    items = result.scalars().all()
+    
+    import math
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": math.ceil(total / size) if total > 0 else 0
+    }
 
 @router.get("/with-active-cases", response_model=List[schemas.ClientWithCases])
 async def get_clients_with_active_cases(

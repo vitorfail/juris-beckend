@@ -14,6 +14,7 @@ from ...dependencies import get_current_active_user, get_current_admin_user
 
 router = APIRouter()
 
+@router.get("", response_model=List[schemas.LawFirmInDB])
 @router.get("/", response_model=List[schemas.LawFirmInDB])
 async def get_all_law_firms(
     skip: int = 0,
@@ -38,7 +39,7 @@ async def get_law_firm_by_id(
         raise HTTPException(status_code=404, detail="Escritório não encontrado")
     return law_firm
 
-@router.post("/criar_firma", response_model=schemas.LawFirmInDB, status_code=status.HTTP_201_CREATED)
+@router.post("/criar-firma", response_model=schemas.LawFirmInDB, status_code=status.HTTP_201_CREATED)
 async def create_law_firm(
     law_firm: schemas.LawFirmCreate,
     db: AsyncSession = Depends(get_db)

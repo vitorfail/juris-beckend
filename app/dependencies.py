@@ -67,6 +67,43 @@ async def get_current_user(
     
     return user
 
+async def get_current_token_data(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> TokenData:
+    """
+    Versão ultra-rápida que apenas valida o JWT sem ir ao banco de dados.
+    Ideal para rotas de alta frequência.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Token inválido ou expirado",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(
+            token, 
+            settings.SECRET_KEY, 
+            algorithms=[settings.ALGORITHM]
+        )
+        user_id: str = payload.get("sub")
+        email: str = payload.get("email")
+        law_firm_id: str = payload.get("law_firm_id")
+        role: str = payload.get("role")
+        
+        if user_id is None or email is None or law_firm_id is None:
+            raise credentials_exception
+            
+        return TokenData(
+            user_id=user_id,
+            email=email,
+            law_firm_id=law_firm_id,
+            role=role
+        )
+    except JWTError:
+        raise credentials_exception
+
 async def get_current_active_user(
     current_user: models.User = Depends(get_current_user)
 ) -> models.User:

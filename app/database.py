@@ -14,9 +14,10 @@ engine = create_async_engine(
     # ⚡ CONFIGURAÇÕES PARA ALTA PERFORMANCE:
     echo=False,
     
-    # Pool para alta latência e concorrência
-    pool_size=20,
-    max_overflow=30,
+    # Pool para alta latência e concorrência (Otimizado para Banco Remoto)
+    pool_size=50,
+    max_overflow=100,
+    pool_timeout=30,
     pool_pre_ping=True,
     pool_recycle=3600,
     

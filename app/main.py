@@ -32,15 +32,25 @@ async def startup():
         await conn.run_sync(models.Base.metadata.create_all)
     logger.info("Tabelas verificadas/criadas com sucesso.")
 
-# Configurar CORS
-if settings.BACKEND_CORS_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+# Configurar CORS - Temporariamente permissivo para debug
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.middleware("http")
+async def log_requests(request, call_next):
+    logger.info(f"Request: {request.method} {request.url}")
+    try:
+        response = await call_next(request)
+        logger.info(f"Response: {response.status_code}")
+        return response
+    except Exception as e:
+        logger.error(f"Error processing request: {e}")
+        raise
 
 # Incluir rotas
 app.include_router(api_router, prefix=settings.API_V1_STR)
@@ -85,11 +95,12 @@ def network_test():
     import socket
     
     host = settings.DATABASE_HOST
+    logger.info(f"Testando latência para o host: '{host}'")
     
     # Teste DNS + TCP
     start = time.time()
     try:
-        ip = socket.gethostbyname(host)
+        ip = socket.gethostbyname(host.strip())
         dns_time = (time.time() - start) * 1000
         
         # Teste TCP

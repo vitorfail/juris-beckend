@@ -11,6 +11,16 @@ class BaseSchema(BaseModel):
             uuid.UUID: str
         }
 
+from typing import TypeVar, Generic
+T = TypeVar("T")
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    items: List[T]
+    total: int
+    page: int
+    size: int
+    pages: int
+
 # Law Firm
 class LawFirmBase(BaseSchema):
     name: str = Field(..., max_length=255)
@@ -116,6 +126,9 @@ class ClientInDB(ClientBase):
     law_firm_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+class ClientPagination(PaginatedResponse[ClientInDB]):
+    pass
 
 # Case
 class CaseBase(BaseSchema):

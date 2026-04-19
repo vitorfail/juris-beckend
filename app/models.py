@@ -40,9 +40,10 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # Constraints
+    # Constraints e Índices
     __table_args__ = (
         CheckConstraint("role IN ('admin', 'lawyer', 'assistant')", name="role_check"),
+        Index("idx_users_law_firm_id", "law_firm_id"),
     )
 
     # Relationships
@@ -83,10 +84,11 @@ class Client(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # Constraints
+    # Constraints e Índices
     __table_args__ = (
         CheckConstraint("type IN ('pf', 'pj')", name="client_type_check"),
-        Index("idx_client_document", "document"),
+        Index("idx_clients_law_firm_id", "law_firm_id"),
+        Index("idx_clients_law_firm_document", "law_firm_id", "document"),
     )
 
     # Relationships
@@ -170,9 +172,10 @@ class Task(Base):
     reminder_date = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Constraints
+    # Constraints e Índices
     __table_args__ = (
         CheckConstraint("status IN ('pending', 'done', 'late')", name="task_status_check"),
+        Index("idx_tasks_law_firm_id", "law_firm_id"),
         Index("idx_tasks_due_date", "due_date"),
     )
 
