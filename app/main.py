@@ -27,10 +27,15 @@ app = FastAPI(
 # Criar tabelas no banco de dados (Modo Assíncrono)
 @app.on_event("startup")
 async def startup():
-    async with engine.begin() as conn:
-        # Nota: create_all é síncrono, então usamos run_sync
-        await conn.run_sync(models.Base.metadata.create_all)
-    logger.info("Tabelas verificadas/criadas com sucesso.")
+    try:
+        logger.info("Tentando conectar ao banco de dados...")
+        async with engine.begin() as conn:
+            # Nota: create_all é síncrono, então usamos run_sync
+            await conn.run_sync(models.Base.metadata.create_all)
+        logger.info("Tabelas verificadas/criadas com sucesso.")
+    except Exception as e:
+        logger.error(f"ERRO CRÍTICO NO STARTUP: {str(e)}")
+        # Não relançamos o erro para o servidor não morrer sem logar
 
 # Configurar CORS - Temporariamente permissivo para debug
 app.add_middleware(
