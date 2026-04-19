@@ -36,7 +36,9 @@ class Settings(BaseSettings):
         
         if url:
             # Garante que use postgresql+asyncpg://
-            if url.startswith("postgresql://"):
+            if url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif url.startswith("postgresql://"):
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
             
             # Remove parâmetros que o asyncpg não gosta (ele usa connect_args no engine se precisar)

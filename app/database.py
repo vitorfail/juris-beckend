@@ -24,6 +24,7 @@ engine = create_async_engine(
     # Timeouts e Keepalives
     connect_args={
         "command_timeout": 60,
+        "ssl": True,  # OBRIGATÓRIO PARA NEON.TECH
         "server_settings": {
             "application_name": "juris_api_async"
         }
