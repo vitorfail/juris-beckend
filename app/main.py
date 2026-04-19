@@ -2,11 +2,9 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 from .config import settings
-from .database import engine
+from .database import engine, get_db, AsyncSessionLocal as SessionLocal
 from . import models
 from .api.router import api_router
-from app.database import get_db, AsyncSessionLocal as SessionLocal
-from app import models
 from sqlalchemy import select, text
 import os
 # Configurar logging
